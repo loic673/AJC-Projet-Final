@@ -11,4 +11,3 @@ kafka-python
 streamlit
 wordcloud
 findspark
-flask
