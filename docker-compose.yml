@@ -1,0 +1,146 @@
+version: '3.7'
+services:
+
+# Apache kafka
+  zookeeper:
+    image: bitnami/zookeeper
+    container_name: zookeeper
+    ports:
+       - 2181:2181
+    environment:
+       - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+       - cluster_network
+
+  kafka:
+    image: bitnami/kafka
+    container_name: kafka
+    depends_on:
+       - zookeeper
+    environment:
+       - KAFKA_BROKER_ID=1
+       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+       - ALLOW_PLAINTEXT_LISTENER=yes
+       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,EXTERNAL:PLAINTEXT
+       - KAFKA_CFG_LISTENERS=CLIENT://:9092,EXTERNAL://:9093
+       - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka:9092,EXTERNAL://localhost:9093
+       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=CLIENT
+       - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+    volumes:
+       - ./streamingProjet:/home
+       - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+       - cluster_network
+
+# Producer
+  producer:
+    container_name: twitter_producer
+    build: 
+       context: .
+       dockerfile: Dockerfile_producer
+    depends_on:
+       - kafka
+    volumes:
+       - ./streamingProjet:/home
+    networks:
+       - cluster_network
+  
+# Apache Spark
+  spark:
+    build: 
+       context: .
+       dockerfile: Dockerfile_spark
+    container_name: spark_master
+    depends_on:
+       - kafka
+    hostname: spark_master
+    user: root
+    environment:
+       - SPARK_MODE=master
+       - SPARK_RPC_AUTHENTICATION_ENABLED=no
+       - SPARK_RPC_ENCRYPTION_ENABLED=no
+       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+       - SPARK_SSL_ENABLED=no
+    networks:
+       - cluster_network
+
+  spark-worker:
+    build: 
+       context: .
+       dockerfile: Dockerfile_spark
+    container_name: spark_worker
+    depends_on:
+       - spark
+    environment:
+       - SPARK_MODE=worker
+       - SPARK_MASTER_URL=spark://spark:7077
+       - SPARK_WORKER_MEMORY=1G
+       - SPARK_WORKER_CORES=1
+       - SPARK_RPC_AUTHENTICATION_ENABLED=no
+       - SPARK_RPC_ENCRYPTION_ENABLED=no
+       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+    networks:
+       - cluster_network
+
+# Consumer
+  consumer:
+    container_name: twitter_consumer
+    build: 
+       context: .
+       dockerfile: Dockerfile_consumer
+    depends_on:
+       - kafka
+    networks:
+       - cluster_network
+
+# Mongo
+  mongo:
+    container_name: mongo
+    image: mongo
+    restart: always
+    environment:
+       - MONGO_INITDB_ROOT_USERNAME=yohancaillau
+       - MONGO_INITDB_ROOT_PASSWORD=KahlanAmnell1
+       - MONGO_INITDB_DATABASE=project_twitter
+    ports:
+       - "27017:27017"
+    depends_on:
+       - consumer
+    volumes:
+       - /data:/data/db 
+    networks:
+       - cluster_network
+
+  mongo-express:
+    container_name: mongo-express
+    image: mongo-express
+    restart: always
+    ports:
+       - 8081:8081
+    depends_on:
+       - mongo
+    environment:
+       - ME_CONFIG_MONGODB_ADMINUSERNAME=yohancaillau
+       - ME_CONFIG_MONGODB_ADMINPASSWORD=KahlanAmnell1
+       - ME_CONFIG_MONGODB_URL=mongodb://yohancaillau:KahlanAmnell1@mongo:27017/
+    networks:
+       - cluster_network
+
+# Streamlit
+  streamlit:
+    container_name: streamlit
+    build: 
+       context: .
+       dockerfile: Dockerfile_streamlit
+    ports:
+       - 8051:8051
+    depends_on:
+       - mongo
+    restart: on-failure
+    networks:
+       - cluster_network
+
+networks:
+  cluster_network:
+     name: kafka-spark-mongodb
+     driver: bridge

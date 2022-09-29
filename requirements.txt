@@ -1,0 +1,13 @@
+textblob
+pandas
+numpy 
+pyspark
+pymongo 
+pymongo[srv] 
+tweepy 
+matplotlib 
+plotly 
+kafka-python 
+streamlit
+wordcloud
+findspark
