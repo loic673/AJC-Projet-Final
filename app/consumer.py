@@ -7,7 +7,6 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, expr, udf, to_timestamp
 from pyspark.sql.types import *
 from textblob import TextBlob
-from textblob_fr import PatternTagger, PatternAnalyzer
 import pymongo
 import re
 import time
